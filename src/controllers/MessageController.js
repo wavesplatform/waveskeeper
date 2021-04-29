@@ -303,6 +303,8 @@ export class MessageController extends EventEmitter {
         }
 
         for (const key in data) {
+            // console.log(key)
+            // console.log(!data.hasOwnProperty(key))
             if (!data.hasOwnProperty(key)) {
                 continue;
             }
@@ -323,7 +325,7 @@ export class MessageController extends EventEmitter {
                 } else if (field.hasOwnProperty('coins') && field.hasOwnProperty('assetId')) {
                     const asset = await this.assetInfo(data[key].assetId);
                     data[key] = Money.fromCoins(field.coins, asset)
-                } else if (field.hasOwnProperty('amount') && field.hasOwnProperty('assetId') && Object.keys(field).length === 2) {
+                } else if (field.hasOwnProperty('amount') && field.hasOwnProperty('assetId') && Object.keys(field) && Object.keys(field).length === 2) {
                     const asset = await this.assetInfo(data[key].assetId);
                     data[key] = Money.fromCoins(field.amount, asset);
                 } else {
@@ -403,6 +405,7 @@ export class MessageController extends EventEmitter {
         const broadcastResp = await this.broadcast(message);
         message.status = MSG_STATUSES.PUBLISHED;
         message.result = broadcastResp;
+        console.log('message', message)
         return message
     }
 
@@ -446,9 +449,8 @@ export class MessageController extends EventEmitter {
         const Adapter = getAdapterByType('seed');
 
         const adapter = new Adapter('validation seed', networkByteFromAddress(account.address).charCodeAt(0));
-
         const signable = adapter.makeSignable({...data, data: signableData});
-
+        console.log('adapter.makeSignable', adapter.makeSignable({...data, data: signableData}))
         const id = await signable.getId();
 
         const bytes = Array.from(await signable.getBytes());
@@ -457,7 +459,6 @@ export class MessageController extends EventEmitter {
 
     async _generateMessage(messageData) {
         const {options} = messageData;
-
         const message = {
             ...messageData,
             id: uuid(),
@@ -465,6 +466,7 @@ export class MessageController extends EventEmitter {
             ext_uuid: options && options.uid,
             status: MSG_STATUSES.UNAPPROVED,
         };
+        console.log('message', message)
         return await this._validateAndTransform(message)
     }
 
@@ -476,7 +478,7 @@ export class MessageController extends EventEmitter {
         }
 
         const hasFee = message.data.data && (message.data.data.fee || message.data.data.matcherFee);
-
+        console.log('message.type', message.type)
         switch (message.type) {
             case 'wavesAuth':
                 result.data = message.data;
@@ -523,7 +525,7 @@ export class MessageController extends EventEmitter {
 
                 const unavailableTx = message.data.filter(({type}) => !allow_tx.includes(type));
 
-                if (unavailableTx.length) {
+                if (!!unavailableTx && unavailableTx.length) {
                     throw new Error(`Tx type can be ${allow_tx.join(', ')}`);
                 }
 
@@ -556,13 +558,23 @@ export class MessageController extends EventEmitter {
                 break;
             case 'transaction':
                 if (!result.data.type || result.data.type >= 1000) {
+                    console.log('result.data', result.data)
                     throw ERRORS.REQUEST_ERROR(result.data);
                 }
 
                 result.data.data = this._prepareTx(result.data.data, message.account);
+                console.log('this._prepareTx', this._prepareTx(result.data.data, message.account))
+                console.log('result.data', result.data)
+                console.log('message', message)
+
                 const feeData = !hasFee ? await this._getFee(message, result.data) : {};
+                console.log('feeData', feeData)
+
+
                 result.data.data = {...result.data.data, ...feeData};
+                console.log('result.data.data', result.data.data)
                 messageMeta = await this._getMessageDataHash(result.data, message.account);
+                console.log('messageMeta', messageMeta)
                 result.messageHash = messageMeta.id;
                 result.bytes = Array.from(messageMeta.bytes);
 
@@ -606,9 +618,14 @@ export class MessageController extends EventEmitter {
 
     async _getFee(message, signData) {
         let signableData = await this._transformData({...signData});
+        // console.log('signableData', signableData)
         const Adapter = getAdapterByType('seed');
+        // console.log('Adapter', Adapter)
         const adapter = new Adapter('validation seed', networkByteFromAddress(message.account.address).charCodeAt(0));
+        // console.log('networkByteFromAddress', networkByteFromAddress(message.account.address).charCodeAt(0))
+        // console.log('{...signData}', {...signData})
         const fee = {coins: (await this.getFee(adapter, signableData)).toString(), assetId: 'WAVES'};
+        // console.log('fee', fee)
         return {
             fee,
             matcherFee: fee,

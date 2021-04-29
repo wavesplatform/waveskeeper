@@ -489,6 +489,8 @@ class BackgroundService extends EventEmitter {
                 this.emit('Show notification');
             }
 
+            const signedTx = await this.messageController.getMessageResult(messageId)
+            console.log('signedTx', signedTx)
             return await this.messageController.getMessageResult(messageId)
         };
 
